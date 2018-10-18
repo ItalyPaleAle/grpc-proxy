@@ -1,0 +1,105 @@
+package proxy_test
+
+import (
+	"flag"
+	"log"
+	"net"
+	"testing"
+	"time"
+
+	"github.com/mwitkow/grpc-proxy/proxy"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+)
+
+const (
+	pingDefaultValue   = "I like kittens."
+	clientMdKey        = "test-client-header"
+	serverHeaderMdKey  = "test-client-header"
+	serverTrailerMdKey = "test-client-trailer"
+
+	rejectingMdKey = "test-reject-rpc-if-in-context"
+
+	countListResponses = 20
+)
+
+var (
+	address, serverAddress string
+	to                     int
+	lis                    net.Listener
+	p                      *grpc.Server
+)
+
+func init() {
+
+}
+
+func TestMain(m *testing.M) {
+	flag.StringVar(&address, "a", "", "set the listening addess")
+	flag.StringVar(&serverAddress, "s", "", "set the target server addess")
+	flag.IntVar(&to, "t", 60, "set timeout in seconds")
+	flag.Parse()
+
+	go func() {
+		<-time.After(time.Second * time.Duration(to))
+		p.Stop()
+	}()
+
+	m.Run()
+	log.Println("test done")
+}
+
+func Test_ProxyServer(t *testing.T) {
+
+	if address == "" {
+		t.Fatal("address cannot be empty")
+	}
+	var err error
+	lis, err = net.Listen("tcp", address)
+	if err != nil {
+		t.Fatal("cannot listen on privided address:", err)
+	}
+
+	// Setup of the proxy's Director.
+	c := proxy.NewCodec()
+	s, err := grpc.Dial(serverAddress, grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.CallContentSubtype(c.Name())))
+	if err != nil {
+		t.Fatal("must not error on deferred client Dial", err)
+	}
+
+	director := func(ctx context.Context, fullName string) (context.Context, *grpc.ClientConn, error) {
+		md, ok := metadata.FromIncomingContext(ctx)
+		if ok {
+			if _, exists := md[rejectingMdKey]; exists {
+				return ctx, nil, status.Errorf(codes.PermissionDenied, "testing rejection")
+			}
+		}
+		// Explicitly copy the metadata, otherwise the tests will fail.
+		outCtx, _ := context.WithCancel(ctx)
+		outCtx = metadata.NewOutgoingContext(outCtx, md.Copy())
+		return outCtx, s, nil
+	}
+	p = grpc.NewServer(
+		// grpc.CustomCodec(proxy.Codec()),
+		grpc.UnknownServiceHandler(proxy.TransparentHandler(director)),
+	)
+	// Ping handler is handled as an explicit registration and not as a TransparentHandler.
+	proxy.RegisterService(p, director,
+		"mwitkow.testproto.TestService",
+		"Ping")
+
+	// go func() {
+	// 	// stop after timeout
+	// 	<-time.After(time.Second * time.Duration(to))
+	// 	os.Exit(0)
+	// }()
+
+	log.Printf("starting grpc.Proxy at: %v\n", lis.Addr().String())
+
+	if err := p.Serve(lis); err != nil {
+		log.Fatal("proxy failed", err)
+	}
+}

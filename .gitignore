@@ -23,4 +23,7 @@ _testmain.go
 
 *.exe
 *.test
-*.prof
+*.profvendor
+
+vendor
+*_coverage.out
