@@ -54,7 +54,6 @@ func (c *rawCodec) Marshal(v interface{}) ([]byte, error) {
 }
 
 func (c *rawCodec) Unmarshal(data []byte, v interface{}) error {
-
 	dst, ok := v.(*Frame)
 	if !ok {
 		return c.parentCodec.Unmarshal(data, v)

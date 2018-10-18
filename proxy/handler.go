@@ -72,7 +72,7 @@ func (s *handler) handler(srv interface{}, serverStream grpc.ServerStream) error
 		return err
 	}
 	// TODO(mwitkow): Add a `forwarded` header to metadata, https://en.wikipedia.org/wiki/X-Forwarded-For.
-	clientStream, err := grpc.NewClientStream(clientCtx, clientStreamDescForProxying, backendConn, fullMethodName)
+	clientStream, err := grpc.NewClientStream(clientCtx, clientStreamDescForProxying, backendConn, fullMethodName, grpc.CallContentSubtype("grpcproxy"))
 	if err != nil {
 		return err
 	}
