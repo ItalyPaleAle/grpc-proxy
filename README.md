@@ -11,6 +11,7 @@
 
 Build a transparent reverse proxy for gRPC targets that will make it easy to expose gRPC services
 over the internet. This includes:
+
  * no needed knowledge of the semantics of requests exchanged in the call (independent rollouts)
  * easy, declarative definition of backends and their mappings to frontends
  * simple round-robin load balancing of inbound requests from a single connection to multiple backends
@@ -53,11 +54,11 @@ director = func(ctx context.Context, fullMethodName string) (*grpc.ClientConn, e
     return nil, status.Errorf(codes.Unimplemented, "Unknown method")
 }
 ```
+
 Then you need to register it with a `grpc.Server`. The proxy codec is automatically registered by importing the codec package. The server may have other handlers that will be served
 locally:
 
 ```go
-
 import codec "github.com/mwitkow/grpc-proxy/proxy/codec"
 
 ...

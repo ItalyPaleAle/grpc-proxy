@@ -39,6 +39,7 @@ const (
 
 // asserting service is implemented on the server side and serves as a handler for stuff
 type assertingService struct {
+	pb.UnimplementedTestServiceServer
 	t *testing.T
 }
 
@@ -118,7 +119,8 @@ func (s *ProxyHappySuite) TestPingEmptyCarriesClientMetadata() {
 	ctx := metadata.NewOutgoingContext(s.ctx(), metadata.Pairs(clientMdKey, "true"))
 	out, err := s.testClient.PingEmpty(ctx, &pb.Empty{})
 	require.NoError(s.T(), err, "PingEmpty should succeed without errors")
-	require.Equal(s.T(), &pb.PingResponse{Value: pingDefaultValue, Counter: 42}, out)
+	require.Equal(s.T(), pingDefaultValue, out.Value)
+	require.Equal(s.T(), int32(42), out.Counter)
 }
 
 func (s *ProxyHappySuite) TestPingEmpty_StressTest() {
@@ -134,7 +136,8 @@ func (s *ProxyHappySuite) TestPingCarriesServerHeadersAndTrailers() {
 	// This is an awkward calling convention... but meh.
 	out, err := s.testClient.Ping(s.ctx(), &pb.PingRequest{Value: "foo"}, grpc.Header(&headerMd), grpc.Trailer(&trailerMd))
 	require.NoError(s.T(), err, "Ping should succeed without errors")
-	require.Equal(s.T(), &pb.PingResponse{Value: "foo", Counter: 42}, out)
+	require.Equal(s.T(), "foo", out.Value)
+	require.Equal(s.T(), int32(42), out.Counter)
 	assert.Contains(s.T(), headerMd, serverHeaderMdKey, "server response headers must contain server data")
 	assert.Len(s.T(), trailerMd, 1, "server response trailers must contain server data")
 }
@@ -278,6 +281,8 @@ func (s *ProxyHappySuite) TearDownSuite() {
 		s.server.Stop()
 		s.serverListener.Close()
 	}
+	// Wait to ensure all servers have shut down
+	time.Sleep(time.Second)
 }
 
 func TestProxyHappySuite(t *testing.T) {
